@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Qubit Demo – 10,000 Points</title>
+  <style>
+    :root {
+      --blue: #0a66ff;
+      --red:  #e03131;
+      --line: #000;
+      --bg:   #f6f7fb;
+      --circle: #999;
+    }
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: var(--bg);
+      display: grid;
+      place-items: center;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    }
+    canvas { background: #fff; border: 1px solid #ddd; }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+
+  <script>
+  (function () {
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    // Canvas & circle sizing
+    const size = Math.min(720, Math.min(window.innerWidth, window.innerHeight) - 40);
+    canvas.width = size;
+    canvas.height = size;
+    const cx = size / 2;
+    const cy = size / 2;
+    const R  = size * 0.45;      // circle radius
+
+    // Point parameters
+    const N = 10000;             // number of moving points
+    const angles = new Float32Array(N);
+    const phases = new Float32Array(N);
+
+    // Precompute angle+phase for each point
+    for (let i = 0; i < N; i++) {
+      angles[i] = (i / N) * Math.PI * 2;           // base angle around circle
+      phases[i] = (i / N) * Math.PI * 2;           // unique phase for radial oscillation
+    }
+
+    // Precompute a sparse set of boundary points to ensure the circumference is always touched
+    const boundaryStep = 2 * Math.PI / 720;        // 720 edge markers (~0.5° apart)
+    const boundaryAngles = [];
+    for (let a = 0; a < Math.PI * 2; a += boundaryStep) boundaryAngles.push(a);
+
+    let t = 0;
+
+    function draw() {
+      t += 0.02;
+
+      // Clear
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Background half-disk tints (very light)
+      ctx.save();
+      ctx.globalAlpha = 0.06;
+
+      // Upper (|1>) blue semi-circle
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, R, Math.PI, 0, false); // from left to right along top
+      ctx.closePath();
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--blue');
+      ctx.fill();
+
+      // Lower (|0>) red semi-circle
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, R, 0, Math.PI, false); // from right to left along bottom
+      ctx.closePath();
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--red');
+      ctx.fill();
+
+      ctx.restore();
+
+      // Circle outline
+      ctx.beginPath();
+      ctx.arc(cx, cy, R, 0, Math.PI * 2);
+      ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--circle');
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // Middle horizontal line (black), clipped to the circle
+ctx.save();
+ctx.beginPath();
+ctx.arc(cx, cy, R, 0, Math.PI * 2);
+ctx.clip();
+ctx.beginPath();
+ctx.moveTo(cx - R, cy); // start left edge
+ctx.lineTo(cx + R, cy); // go to right edge
+ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--line');
+ctx.lineWidth = 2;
+ctx.stroke();
+ctx.restore();
+
+
+      // Labels: 1 on top (blue), 0 on bottom (red)
+      ctx.font = `${Math.round(R * 0.14)}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--blue');
+      ctx.fillText('1', cx, cy - R - Math.max(14, R * 0.06)); // just outside the top edge
+
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--red');
+      ctx.fillText('0', cx, cy + R + Math.max(14, R * 0.06)); // just outside the bottom edge
+
+      // Animation controls:
+      // - rotation: rotates the entire pattern
+      // - osc: blends between full-disc fill and wave pattern
+      const rotation = t * 0.15;
+      const osc = 0.5 * (1 + Math.sin(t * 0.6)); // 0..1
+
+      // Draw moving points
+      // Upper half points are blue; lower half points are red.
+      for (let i = 0; i < N; i++) {
+        const a = angles[i] + rotation;
+        // Blend between "full disc" (r ~ random across 0..R) and "wave pattern"
+        const wave = 0.5 + 0.5 * Math.sin(6 * a + t + phases[i]);
+        const r = R * (osc * wave + (1 - osc) * 1.0); // when osc→0, tends to the edge; osc→1, wave fills interior
+
+        const x = cx + r * Math.cos(a);
+        const y = cy + r * Math.sin(a);
+
+        ctx.fillStyle = (y < cy) ? '#0a66ff' : '#e03131';
+        // A 1×1 rect is crisp and fast
+        ctx.fillRect(x, y, 1, 1);
+      }
+
+      // Boundary points to guarantee contact with circumference
+      ctx.fillStyle = '#0a66ff'; // top half markers (will be recolored per y)
+      for (let k = 0; k < boundaryAngles.length; k++) {
+        const a = boundaryAngles[k] + rotation;
+        const x = cx + R * Math.cos(a);
+        const y = cy + R * Math.sin(a);
+        ctx.fillStyle = (y < cy) ? '#0a66ff' : '#e03131';
+        ctx.fillRect(x, y, 1, 1);
+      }
+
+      requestAnimationFrame(draw);
+    }
+
+    draw();
+  })();
+  </script>
+</body>
+</html>
